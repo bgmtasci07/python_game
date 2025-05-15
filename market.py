@@ -3,7 +3,7 @@ from const import *
 
 class Market:
     def __init__(self, game_instance):
-        self.game = game_instance  # YarisOyunu sınıfına referans
+        self.game = game_instance  
         
         # Market değişkenleri
         self.market_title = None
@@ -43,13 +43,13 @@ class Market:
             x = start_x + i * spacing_x
 
             if i == 0:
-                car = arcade.Sprite( scale=0.9)
+                car = arcade.Sprite("assets/images/beyaz_araba.png", scale=0.9)
             elif i == 1:
-                car = arcade.Sprite(scale=0.4)
+                car = arcade.Sprite("assets/images/kirmizi_araba.png", scale=0.4)
             elif i == 2:
-                car = arcade.Sprite( scale=0.9)
+                car = arcade.Sprite("assets/images/mor_araba.png", scale=0.9)
             elif i == 3:
-                car = arcade.Sprite( scale=0.7)  
+                car = arcade.Sprite("assets/images/klasik_araba.png", scale=0.7)  
 
             car.center_x = x
             car.center_y = car_y
@@ -59,7 +59,7 @@ class Market:
                     car_y - car.height / 2 - 10, car_y + car.height / 2 + 10)
             self.market_car_rects.append(rect)
 
-            fiyat_y = SCREEN_HEIGHT * 0.25  # Sabit Y konumu
+            fiyat_y = SCREEN_HEIGHT * 0.25  
 
             # Çerçeve boyutu
             kutu_genislik = 80
@@ -103,5 +103,37 @@ class Market:
 
         if self.show_insufficient_coins_message:
             self.insufficient_coins_text.draw()
+
+    def handle_market_click(self, x, y, button, modifiers):
+        if self.check_button_click(self.market_back_rect, x, y):
+            # Ana menüye dön
+            self.game.menu.setup_menu()
+            return True
+            
+        for i, rect in enumerate(self.market_car_rects):
+            if self.check_button_click(rect, x, y):
+                if not self.game.purchased_cars[i]:  
+                    if self.game.coins >= self.game.car_prices[i]:
+                        self.game.coins -= self.game.car_prices[i]
+                        self.game.purchased_cars[i] = True
+                        self.game.selected_car_index = i
+                        self.market_coin_text.text = f"Coin: {self.game.coins}"
+                    else:
+                        self.show_insufficient_coins_message = True
+                        self.insufficient_coins_timer = 2.0
+                else:
+                    self.game.selected_car_index = i 
+                return True
+                
+        return False  
+    
+    def update(self, delta_time):
+        if self.show_insufficient_coins_message:
+            self.insufficient_coins_timer -= delta_time
+            if self.insufficient_coins_timer <= 0:
+                self.show_insufficient_coins_message = False
+    
+    def check_button_click(self, rect, x, y):
+        return rect[0] < x < rect[1] and rect[2] < y < rect[3]        
     
     
