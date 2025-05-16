@@ -2,20 +2,24 @@ import arcade
 import random
 import time
 import os
-from const import *  
-from menu import Menu  
-from draw import GameDrawer  
-from market import Market  
+from const import *  # Tüm sabitleri const.py'den içe aktarıyoruz
+from menu import Menu  # Menü sınıfını içe aktarıyoruz
+from draw import GameDrawer  # Çizim sınıfını içe aktarıyoruz
+from market import Market  # Market sınıfını içe aktarıyoruz
 
 class CanPaketi(arcade.Sprite):
     def __init__(self, x, y, hiz):
         super().__init__()
-        self.frames = [arcade.load_texture  ("assets/images/horoz.png"),]
+        self.frames = [arcade.load_texture(f"assets/images/horoz_{i}.png") for i in range(3)]
         self.texture_index = 0
         self.texture = self.frames[self.texture_index]
         self.center_x = x
         self.center_y = y
         self.change_y = -hiz * 0.5
+        self.animation_timer = 0
+        self.scale = 0.3 
+
+        self.change_x = random.choice([-1.5, 1.5])  # Sağ-sol hareket
 
     def update(self, delta_time: float = 1/60):
         self.center_x += self.change_x
@@ -25,6 +29,12 @@ class CanPaketi(arcade.Sprite):
 
         self.center_y += self.change_y
 
+    def update_animation(self, delta_time: float = 1/60):
+        self.animation_timer += delta_time
+        if self.animation_timer > 0.1:
+            self.texture_index = (self.texture_index + 1) % len(self.frames)
+            self.texture = self.frames[self.texture_index]
+            self.animation_timer = 0
 
 
 class YarisOyunu(arcade.Window):
@@ -33,7 +43,10 @@ class YarisOyunu(arcade.Window):
 
         self.game_state = 0  # Menüden başlayalım
 
-        
+        self.game_music = None
+        self.game_music_player = None
+        if os.path.exists("assets/sounds/denizli_turkusu.wav"):
+            self.game_music = arcade.load_sound("assets/sounds/denizli_turkusu.wav")
             
         # Menü, çizim ve market sınıflarını oluştur
         self.menu = Menu(self)  # Menü sınıfını oluştur
@@ -68,6 +81,8 @@ class YarisOyunu(arcade.Window):
     
 
         self.skor = 0
+        self.hiz = ENGEL_HIZI
+        self.son_engel_zamani = 0
         self.son_coin_skoru = 0
         self.son_can_skoru = 0 # Can paketi için skor takibi
 
@@ -81,6 +96,7 @@ class YarisOyunu(arcade.Window):
         # Sprite listeleri
         self.araba_list = arcade.SpriteList()
         self.seritler = arcade.SpriteList()
+        self.engeller = arcade.SpriteList()
         self.canlar = arcade.SpriteList() # Can paketleri için SpriteList
         self.menu_background_list = arcade.SpriteList() # Menü arka planı için
         self.menu_button_bg_list = arcade.SpriteList() # Menü buton arka planları için
@@ -129,13 +145,23 @@ class YarisOyunu(arcade.Window):
         arcade.set_background_color(arcade.color.DIM_GRAY)
         self.game_state = 1
         
+        # Menü müziği varsa durdur
+        if hasattr(self, "menu_music_player") and self.menu_music_player:
+            self.menu_music_player.delete()
+
+        # Oyun müziğini başlat
+        if self.game_music:
+            self.game_music_player = self.game_music.play(loop=True)
 
         self.araba_list.clear()
         self.seritler.clear()
         self.create_lanes()
+        self.engeller.clear()
         self.canlar.clear() # Canları temizle
 
         self.skor = 0
+        self.hiz = ENGEL_HIZI
+        self.son_engel_zamani = 0
         self.son_coin_skoru = 0 # Coin skorunu sıfırla
         self.son_can_skoru = 0 # Can skorunu sıfırla
         self.can = 1 # Canı 1'e ayarla
@@ -176,6 +202,20 @@ class YarisOyunu(arcade.Window):
                 self.seritler.append(serit)
             mevcut_y -= toplam_birim
             
+    def create_obstacle(self):
+        """Rastgele iki farkli engel fotoğrafindan birini seçip engel oluşturur."""
+        engel_secenekleri = [
+            "assets/images/engel.png",
+            "assets/images/engel_duba.png"
+        ]
+        secilen_engel = random.choice(engel_secenekleri)
+
+        engel = arcade.Sprite(secilen_engel, scale=0.4)  # Gerekirse scale'ı ayarlayabilirsin
+        engel.center_x = random.choice(ENGEL_KONUMLARI)
+        engel.center_y = SCREEN_HEIGHT + 30
+        engel.change_y = -self.hiz
+        self.engeller.append(engel)
+
     def create_can(self):
         """Can paketi (horoz) oluşturur"""
         x = random.choice(ENGEL_KONUMLARI)
@@ -209,22 +249,63 @@ class YarisOyunu(arcade.Window):
         elif self.game_state == 1:
             self.araba.update()
             self.seritler.update()
+            self.engeller.update()
             self.canlar.update()
 
+            self.son_engel_zamani += delta_time
+            if self.son_engel_zamani > 1.0:
+                self.create_obstacle()
+                self.son_engel_zamani = 0
 
             # Şeritleri tekrar konumlandır (sonsuz yol efekti)
             for serit in self.seritler:
                 if serit.center_y < -SERIT_YUKSEKLIK / 2:
                     serit.center_y = SCREEN_HEIGHT + SERIT_YUKSEKLIK
 
-            
+            # Ekrandan çıkan engelleri sil, skor ve hızı güncelle
+            for engel in list(self.engeller):
+                if engel.top < 0:
+                    puan_artisi = int((self.hiz / ENGEL_HIZI) * 10)
+                    self.skor += max(1, puan_artisi)
+                    self.hiz = min(self.hiz + HIZ_ARTIS, 12)  # Maksimum hız = 12
 
+                    # Yeni hızları uygula
+                    for serit in self.seritler:
+                        serit.change_y = -self.hiz
+                    for e in self.engeller:
+                        e.change_y = -self.hiz
+                    for c in self.canlar:
+                        c.change_y = -self.hiz
+
+                    engel.remove_from_sprite_lists()
 
             # Ekrandan çıkan horozları sil
             for can_paketi in list(self.canlar):
                 if can_paketi.top < 0:
                     can_paketi.remove_from_sprite_lists()
 
+            # Araba - engel çarpışması
+            if self.can > 0:
+                engel_carpismalari = arcade.check_for_collision_with_list(self.araba, self.engeller)
+                for engel in engel_carpismalari:
+                    engel.remove_from_sprite_lists()
+                    self.can -= 1
+                    if self.can <= 0:
+                        if self.skor > self.high_score:
+                            self.high_score = int(self.skor)
+                            print("YENİ HIGH SCORE:", self.high_score)
+
+                        if self.game_music_player:
+                            try:
+                                self.game_music_player.pause()
+                            except AttributeError:
+                                pass
+                            self.game_music_player = None
+
+                        self.game_state = 3
+                        if hasattr(self, "game_music_player") and self.game_music_player:
+                            self.game_music_player.delete()
+                        break  # Oyun bitti, diğer kontrolleri yapma
 
             # Araba - horoz çarpışması (can toplama)
             if self.can > 0:
@@ -265,7 +346,13 @@ class YarisOyunu(arcade.Window):
                     except Exception:
                         pass
 
-                
+        elif self.game_state == 4 and key == arcade.key.ESCAPE:
+            self.game_state = 1  # Duraklatma -> devam
+            if self.game_music_player:
+                try:
+                    self.game_music_player.play()
+                except Exception:
+                    pass
 
         elif self.game_state == 0 and key == arcade.key.ESCAPE:
             self.close()  # Menüdeyken çık
@@ -292,7 +379,11 @@ class YarisOyunu(arcade.Window):
         elif self.game_state == 4:
             if self.check_button_click(self.pause_continue_rect, x, y):
                 self.game_state = 1  # Devam et
-    
+                if self.game_music_player:
+                    try:
+                        self.game_music_player.play()
+                    except Exception:
+                        pass
             elif self.check_button_click(self.pause_mainmenu_rect, x, y):
                 self.setup_menu()            
 
@@ -312,4 +403,14 @@ class YarisOyunu(arcade.Window):
         except Exception as e:
             print(f"Kaydetme hatası: {e}")
 
+        # Menü müziğini durdur
+        if hasattr(self, "menu_music_player") and self.menu_music_player:
+            self.menu_music_player.delete()
+
+        # Oyun müziğini durdur
+        if hasattr(self, "game_music_player") and self.game_music_player:
+            self.game_music_player.delete()
         super().on_close()
+        
+
+# Main execution code moved to main.py 
