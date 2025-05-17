@@ -17,7 +17,7 @@ class CanPaketi(arcade.Sprite):
         self.center_y = y
         self.change_y = -hiz * 0.5
         self.animation_timer = 0
-        self.scale = 0.3 
+        self.scale = 0.3
 
         self.change_x = random.choice([-1.5, 1.5])  # Sağ-sol hareket
 
@@ -41,6 +41,12 @@ class YarisOyunu(arcade.Window):
     def __init__(self):
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
 
+        self.game_state = 0  # Menüden başlayalım
+
+        self.game_music = None
+        self.game_music_player = None
+        if os.path.exists("assets/sounds/denizli_turkusu.wav"):
+            self.game_music = arcade.load_sound("assets/sounds/denizli_turkusu.wav")
             
         # Menü, çizim ve market sınıflarını oluştur
         self.menu = Menu(self)  # Menü sınıfını oluştur
@@ -139,7 +145,14 @@ class YarisOyunu(arcade.Window):
         arcade.set_background_color(arcade.color.DIM_GRAY)
         self.game_state = 1
         
-       
+        # Menü müziği varsa durdur
+        if hasattr(self, "menu_music_player") and self.menu_music_player:
+            self.menu_music_player.delete()
+
+        # Oyun müziğini başlat
+        if self.game_music:
+            self.game_music_player = self.game_music.play(loop=True)
+
         self.araba_list.clear()
         self.seritler.clear()
         self.create_lanes()
@@ -282,7 +295,17 @@ class YarisOyunu(arcade.Window):
                             self.high_score = int(self.skor)
                             print("YENİ HIGH SCORE:", self.high_score)
 
-                       
+                        if self.game_music_player:
+                            try:
+                                self.game_music_player.pause()
+                            except AttributeError:
+                                pass
+                            self.game_music_player = None
+
+                        self.game_state = 3
+                        if hasattr(self, "game_music_player") and self.game_music_player:
+                            self.game_music_player.delete()
+                        break  # Oyun bitti, diğer kontrolleri yapma
 
             # Araba - horoz çarpışması (can toplama)
             if self.can > 0:
@@ -314,14 +337,22 @@ class YarisOyunu(arcade.Window):
             if key == arcade.key.LEFT:
                 self.araba.change_x = -self.hiz * 1.2
             elif key == arcade.key.RIGHT:
-                self.araba.change_x = self.hiz * 1.2            
+                self.araba.change_x = self.hiz * 1.2
             elif key == arcade.key.ESCAPE:
                 self.game_state = 4  # Oyun -> duraklat
-                
+                if self.game_music_player:
+                    try:
+                        self.game_music_player.pause()
+                    except Exception:
+                        pass
 
         elif self.game_state == 4 and key == arcade.key.ESCAPE:
             self.game_state = 1  # Duraklatma -> devam
-            
+            if self.game_music_player:
+                try:
+                    self.game_music_player.play()
+                except Exception:
+                    pass
 
         elif self.game_state == 0 and key == arcade.key.ESCAPE:
             self.close()  # Menüdeyken çık
@@ -348,9 +379,13 @@ class YarisOyunu(arcade.Window):
         elif self.game_state == 4:
             if self.check_button_click(self.pause_continue_rect, x, y):
                 self.game_state = 1  # Devam et
-                
+                if self.game_music_player:
+                    try:
+                        self.game_music_player.play()
+                    except Exception:
+                        pass
             elif self.check_button_click(self.pause_mainmenu_rect, x, y):
-                self.setup_menu()            
+                self.setup_menu()
 
     def check_button_click(self, rect, x, y):
         return rect[0] < x < rect[1] and rect[2] < y < rect[3]
@@ -368,4 +403,13 @@ class YarisOyunu(arcade.Window):
         except Exception as e:
             print(f"Kaydetme hatası: {e}")
 
+        # Menü müziğini durdur
+        if hasattr(self, "menu_music_player") and self.menu_music_player:
+            self.menu_music_player.delete()
+
+        # Oyun müziğini durdur
+        if hasattr(self, "game_music_player") and self.game_music_player:
+            self.game_music_player.delete()
+        super().on_close()
         
+
