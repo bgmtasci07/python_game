@@ -45,7 +45,7 @@ Pamukkale Drift, Python ve Arcade kütüphanesiyle geliştirilen 2 boyutlu bir a
 
 ### Gereken Paketler:
 
-```bash
+bash
 pip install arcade
 
 ---
