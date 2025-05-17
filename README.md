@@ -48,6 +48,8 @@ Pamukkale Drift, Python ve Arcade kütüphanesiyle geliştirilen 2 boyutlu bir a
 ```bash
 pip install arcade
 
+---
+
 ## 👩‍💻 Geliştiriciler
 
 - Begüm Sıla Taşcı
