@@ -43,7 +43,7 @@ Pamukkale Drift, Python ve Arcade kütüphanesiyle geliştirilen 2 boyutlu bir a
 
 ## 🛠️ Kurulum
 
-### 1. Gereken Paketler:
+### Gereken Paketler:
 
 ```bash
 pip install arcade
@@ -52,7 +52,3 @@ pip install arcade
 
 - Begüm Sıla Taşcı
 - Aysenur Pak
-
-
-
-
